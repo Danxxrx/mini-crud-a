@@ -1,0 +1,16 @@
+
+
+DROP TABLE IF EXISTS products;
+
+CREATE TABLE products (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  sku TEXT NOT NULL UNIQUE,
+  price REAL NOT NULL CHECK (price >= 0),
+  category TEXT DEFAULT '',
+  created_at TEXT NOT NULL -- format YYYY-MM-DD
+);
+
+INSERT INTO products(name, sku, price, category, created_at) VALUES
+('Mydło', 'SKU-1001', 12.34, 'Higiena', '2025-01-01'),
+('Sok jabłkowy', 'SKU-1002', 5.99, 'Spożywcze', '2025-01-02');
