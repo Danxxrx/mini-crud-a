@@ -1,0 +1,24 @@
+// src/db.js
+import sqlite3 from "sqlite3";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// создаём/открываем файл базы рядом с проектом
+export const db = new sqlite3.Database(path.join(__dirname, "..", "data.sqlite"));
+
+// запускаем миграцию из migrations/001_init.sql
+export function initDb(cb) {
+  const sqlPath = path.join(__dirname, "..", "migrations", "001_init.sql");
+  const sql = fs.readFileSync(sqlPath, "utf-8");
+  db.exec(sql, (err) => {
+    if (err) {
+      console.error("Błąd migracji:", err.message);
+      process.exit(1);
+    }
+    cb && cb();
+  });
+}
