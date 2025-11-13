@@ -22,3 +22,5 @@ Celem było przygotowanie pełnego CRUD dla jednej encji (produkt) z użyciem:
 
    ```bash
    cd mini-crud-a
+> Mała aktualizacja opisu do części A.
+
