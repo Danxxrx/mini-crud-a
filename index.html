@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="pl">
+<head>
+    <meta charset="utf-8">
+    <title>Mini CRUD – Produkty</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 0 10px;
+        }
+        h1 { text-align: center; }
+        .box {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+        label {
+            display: block;
+            margin-top: 6px;
+            font-size: 14px;
+        }
+        input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 4px 6px;
+            margin-top: 2px;
+        }
+        button {
+            margin-top: 8px;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+            font-size: 14px;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 4px 6px;
+            text-align: left;
+        }
+        th { background: #f3f3f3; }
+        .msg-ok { color: green; font-size: 14px; }
+        .msg-error { color: darkred; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+<h1>Produkty – mini CRUD</h1>
+
+<div class="box">
+    <h2 id="form-title">Dodaj produkt</h2>
+    <p id="message"></p>
+
+    <form id="product-form">
+        <label for="name">Nazwa *</label>
+        <input id="name" name="name" required>
+
+        <label for="sku">SKU (unikalne) *</label>
+        <input id="sku" name="sku" required>
+
+        <label for="price">Cena *</label>
+        <input id="price" name="price" type="number" step="0.01" min="0" required>
+
+        <label for="category">Kategoria</label>
+        <input id="category" name="category">
+
+        <button type="submit" id="save-btn">Zapisz</button>
+        <button type="button" id="cancel-edit-btn" style="display:none;">Anuluj edycję</button>
+    </form>
+</div>
+
+<div class="box">
+    <h2>Lista produktów</h2>
+    <table>
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>Nazwa</th>
+            <th>SKU</th>
+            <th>Cena</th>
+            <th>Kategoria</th>
+            <th>Utworzono</th>
+            <th>Akcje</th>
+        </tr>
+        </thead>
+        <tbody id="products-body"></tbody>
+    </table>
+</div>
+
+<script>
+    // ВАЖНО: используем /entities, как в server.js
+    const API_URL = 'http://localhost:3000/entities';
+
+    const form = document.getElementById('product-form');
+    const nameInput = document.getElementById('name');
+    const skuInput = document.getElementById('sku');
+    const priceInput = document.getElementById('price');
+    const categoryInput = document.getElementById('category');
+    const message = document.getElementById('message');
+    const productsBody = document.getElementById('products-body');
+    const formTitle = document.getElementById('form-title');
+    const cancelEditBtn = document.getElementById('cancel-edit-btn');
+    const saveBtn = document.getElementById('save-btn');
+
+    let editId = null;
+
+    function setMessage(text, isError) {
+        if (!text) {
+            message.textContent = '';
+            message.className = '';
+            return;
+        }
+        message.textContent = text;
+        message.className = isError ? 'msg-error' : 'msg-ok';
+    }
+
+    function clearForm() {
+        form.reset();
+        editId = null;
+        formTitle.textContent = 'Dodaj produkt';
+        saveBtn.textContent = 'Zapisz';
+        cancelEditBtn.style.display = 'none';
+        setMessage('');
+    }
+
+    async function loadProducts() {
+        try {
+            const res = await fetch(API_URL);
+            const data = await res.json();
+            renderProducts(data);
+        } catch (e) {
+            setMessage('Błąd podczas pobierania produktów', true);
+        }
+    }
+
+    function renderProducts(products) {
+        productsBody.innerHTML = '';
+        products.forEach(p => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${p.id}</td>
+                <td>${p.name}</td>
+                <td>${p.sku}</td>
+                <td>${p.price}</td>
+                <td>${p.category || ''}</td>
+                <td>${p.created_at || ''}</td>
+                <td>
+                    <button data-id="${p.id}" data-action="edit">Edytuj</button>
+                    <button data-id="${p.id}" data-action="delete">Usuń</button>
+                </td>
+            `;
+            productsBody.appendChild(tr);
+        });
+    }
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const product = {
+            name: nameInput.value.trim(),
+            sku: skuInput.value.trim(),
+            price: parseFloat(priceInput.value),
+            category: categoryInput.value.trim(),
+            // created_at обязателен на сервере, ставим текущее время
+            created_at: new Date().toISOString()
+        };
+
+        if (!product.name || !product.sku || isNaN(product.price)) {
+            setMessage('Wypełnij wymagane pola.', true);
+            return;
+        }
+
+        try {
+            let res;
+            if (editId === null) {
+                res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(product)
+                });
+            } else {
+                res = await fetch(`${API_URL}/${editId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(product)
+                });
+            }
+
+            if (res.status === 400) {
+                setMessage('Nieprawidłowe dane wejściowe.', true);
+                return;
+            }
+
+            if (!res.ok) {
+                setMessage('Wystąpił błąd po stronie serwera.', true);
+                return;
+            }
+
+            clearForm();
+            await loadProducts();
+            setMessage('Zapisano produkt.', false);
+        } catch (e) {
+            setMessage('Błąd sieci.', true);
+        }
+    });
+
+    cancelEditBtn.addEventListener('click', () => {
+        clearForm();
+    });
+
+    productsBody.addEventListener('click', async (e) => {
+        const btn = e.target;
+        const id = btn.dataset.id;
+        const action = btn.dataset.action;
+        if (!id || !action) return;
+
+        if (action === 'edit') {
+            try {
+                const res = await fetch(`${API_URL}/${id}`);
+                if (res.status === 404) {
+                    setMessage('Produkt nie istnieje.', true);
+                    return;
+                }
+                const p = await res.json();
+                nameInput.value = p.name;
+                skuInput.value = p.sku;
+                priceInput.value = p.price;
+                categoryInput.value = p.category || '';
+
+                editId = p.id;
+                formTitle.textContent = 'Edytuj produkt (ID ' + p.id + ')';
+                saveBtn.textContent = 'Zapisz zmiany';
+                cancelEditBtn.style.display = 'inline-block';
+                setMessage('');
+            } catch (err) {
+                setMessage('Nie udało się pobrać produktu.', true);
+            }
+        }
+
+        if (action === 'delete') {
+            const ok = confirm('Na pewno usunąć ten produkt?');
+            if (!ok) return;
+
+            try {
+                const res = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+                if (res.status === 404) {
+                    setMessage('Produkt nie istnieje.', true);
+                    return;
+                }
+                if (!res.ok) {
+                    setMessage('Błąd podczas usuwania.', true);
+                    return;
+                }
+                if (editId === Number(id)) {
+                    clearForm();
+                }
+                await loadProducts();
+                setMessage('Usunięto produkt.', false);
+            } catch (err) {
+                setMessage('Błąd sieci przy usuwaniu.', true);
+            }
+        }
+    });
+
+    loadProducts();
+</script>
+
+</body>
+</html>

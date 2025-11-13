@@ -1,8 +1,10 @@
 // server.js
 import express from 'express';
+import cors from 'cors';              
 import { init, all, get, run } from './src/db.js';
 
 const app = express();
+app.use(cors());                      
 app.use(express.json());
 
 app.get('/health', (req, res) => res.json({ ok: true }));
